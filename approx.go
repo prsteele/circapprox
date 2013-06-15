@@ -8,8 +8,8 @@ import (
 // Approximates the image `src' based on the provided circles. Each
 // circle will result in a colors from the source image being blended
 // into the resulting image `dst'.
-func Approximate(src image.Image, dst *image.RGBA64, alpha float64, circles chan *Circle) {
-	for circle := range circles {
+func Approximate(src image.Image, dst *image.RGBA64, alpha float64, circles []Circle) {
+	for _, circle := range circles {
 		// Get the color of the image at this point, and adjust the
 		// alpha channel
 		c := src.At(circle.X, circle.Y)
@@ -27,7 +27,7 @@ func Approximate(src image.Image, dst *image.RGBA64, alpha float64, circles chan
 		cc := color.NRGBA64{
 			R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a)}
 
-		for pt := range circle.Points(src) {
+		for _, pt := range circle.Points(src) {
 			blend(pt, cc, dst)
 		}
 	}

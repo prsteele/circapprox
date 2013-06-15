@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Returns a function that will print a help string
@@ -29,6 +30,8 @@ func printHelp(flags *flag.FlagSet) func() {
 }
 
 func main() {
+	t1 := time.Now()
+
 	//
 	// Set up command-line flags
 	//
@@ -72,9 +75,9 @@ func main() {
 
 	// Approximate the image
 	const (
-		N      = 2000
-		startR = 100
-		endR   = 5
+		N      = 100000
+		startR = 10
+		endR   = 10
 		seed   = 0
 		alpha  = .75
 	)
@@ -129,4 +132,8 @@ func main() {
 			dst_fmt)
 		panic(msg)
 	}
+
+	dt := time.Since(t1)
+
+	fmt.Println(float64(dt) / float64(time.Second))
 }
