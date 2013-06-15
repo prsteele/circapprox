@@ -52,6 +52,31 @@ func (circ Circle) Points(img image.Image) []image.Point {
 	return c
 }
 
+// Returns a point chosen such that each pixel on the image has an
+// equally likely chance of being painted; we do this by sampling
+// points up to one radius away from the edges of the image.
+func unifPoint(img image.Image, r int, rnd *rand.Rand) (int, int) {
+	bounds := img.Bounds()
+
+	dx := (bounds.Max.X - bounds.Min.X)
+	dy := (bounds.Max.Y - bounds.Min.Y)
+	x := bounds.Min.X + rnd.Int()%dx
+	y := bounds.Min.Y + rnd.Int()%dy
+
+	return x, y
+}
+
+// Produces `n' randomly places Circle objects with radius `r'.
+func UniformCircles(img image.Image, n int, r float64, rnd *rand.Rand) []Circle {
+	c := make([]Circle, 0)
+	for i := 0; i < n; i++ {
+		x, y := unifPoint(img, int(r), rnd)
+		c = append(c, Circle{X: x, Y: y, R: r})
+	}
+
+	return c
+}
+
 // Returns a channel of `n' Circle objects at random locations within
 // the image `img'. The radius of the circles begins as startR and
 // decreases linearly until the radius is endR. Uses `rnd' as a random
@@ -67,12 +92,8 @@ func DecreasingCircles(img image.Image, n int, startR, endR float64, rnd *rand.R
 		rstep = 0.0
 	}
 
-	bounds := img.Bounds()
-	dx := (bounds.Max.X - bounds.Min.X)
-	dy := (bounds.Max.Y - bounds.Min.Y)
 	for i := 0; i < n; i++ {
-		x := bounds.Min.X + rnd.Int()%dx
-		y := bounds.Min.Y + rnd.Int()%dy
+		x, y := unifPoint(img, int(r), rnd)
 		c = append(c, Circle{X: x, Y: y, R: r})
 		r -= rstep
 	}

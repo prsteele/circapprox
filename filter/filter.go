@@ -75,15 +75,25 @@ func main() {
 
 	// Approximate the image
 	const (
-		N      = 100000
-		startR = 10
+		N      = 3000
+		startR = 200
 		endR   = 10
+		R      = 60
+		r      = 20
+		rr     = 10
 		seed   = 0
 		alpha  = .75
 	)
+
 	rnd := rand.New(rand.NewSource(seed))
-	circles := circapprox.DecreasingCircles(src, N, startR, endR, rnd)
-	circapprox.Approximate(src, dst, alpha, circles)
+
+	// Apply the filters
+	circles_large := circapprox.UniformCircles(src, 2*N, R, rnd)
+	circles_small := circapprox.UniformCircles(src, N, r, rnd)
+	circles_tiny := circapprox.UniformCircles(src, N/2, rr, rnd)
+	circapprox.Approximate(src, dst, alpha, circles_large)
+	circapprox.Approximate(src, dst, alpha, circles_small)
+	circapprox.Approximate(src, dst, alpha, circles_tiny)
 
 	// Get the output write
 	var writer io.Writer
@@ -104,7 +114,7 @@ func main() {
 	if *out == "" {
 		if src_fmt == ".png" {
 			dst_fmt = src_fmt
-		} else if src_fmt == ".jpeg" {
+		} else if src_fmt == ".jpeg" || src_fmt == ".jpg" {
 			dst_fmt = src_fmt
 		} else {
 			dst_fmt = ".png"
@@ -113,7 +123,7 @@ func main() {
 		ext := filepath.Ext(*out)
 		if ext == ".png" {
 			dst_fmt = ".png"
-		} else if ext == ".jpeg" {
+		} else if ext == ".jpeg" || ext == ".jpg" {
 			dst_fmt = ".jpeg"
 		} else {
 			msg := fmt.Sprintf("Unknown output format '%s'; please use png or jpeg",
