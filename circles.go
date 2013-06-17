@@ -41,7 +41,7 @@ func (circ Circle) Points(img image.Image) []image.Point {
 		max_y = rect.Max.Y
 	}
 
-	for _x := min_x; _x <= max_x; _x++ {
+	for _x := min_x; _x < max_x; _x++ {
 		for _y := min_y; _y < max_y; _y++ {
 			if math.Sqrt(float64((x-_x)*(x-_x)+(y-_y)*(y-_y))) < r {
 				c = append(c, image.Point{X: _x, Y: _y})
