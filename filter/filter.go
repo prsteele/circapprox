@@ -13,19 +13,17 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 )
 
 // Returns a function that will print a help string
 func printHelp(flags *flag.FlagSet) func() {
 	return func() {
-		fmt.Printf("usage: %s [--in=INPUT_IMAGE] [--out=OUTPUT_IMAGE]\n", os.Args[0])
+		fmt.Printf("usage: %s [--in=INPUT_IMAGE] [--out=OUTPUT_IMAGE] [options]\n", os.Args[0])
 
 		fmt.Printf("\nOptions:\n")
 		flags.PrintDefaults()
-
-		fmt.Printf("\nProduces a new image by applying a filter to the input\n")
-		fmt.Printf("If --in is not specified, we read from standard input.\n")
-		fmt.Printf("If --out is not specified, we write from standard output.\n")
 	}
 }
 
@@ -183,24 +181,46 @@ func validate(n int, r, a float64) error {
 	return nil
 }
 
+// A command line flag that stores an int64 value, as well as
+// recording that a value was set
+type CheckedInt64 struct {
+	IsSet bool
+	I     int64
+}
+
+func (checked *CheckedInt64) Set(s string) error {
+	// Try to parse the value as an int64
+	if v, err := strconv.ParseInt(s, 10, 64); err != nil {
+		return err
+	} else {
+		checked.IsSet = true
+		checked.I = v
+		return nil
+	}
+}
+
+func (checked *CheckedInt64) String() string {
+	return "0"
+}
+
 func main() {
 	// Set up command-line flags
 	flags := flag.NewFlagSet("default", flag.ContinueOnError)
 	flags.Usage = printHelp(flags)
 
 	// Input and output file flags
-	in := flags.String("in", "", "The input file")
-	out := flags.String("out", "", "The input file")
+	in := flags.String("in", "", "The input file, or standard in if blank")
+	out := flags.String("out", "", "The input file, or standard out if blank")
 
 	// Approximation flags
 	var n int
 	var r float64
 	var a float64
-	var s int64
+	var s CheckedInt64
 	flags.IntVar(&n, "n", 100, "The number of points to approximate")
 	flags.Float64Var(&r, "r", 10, "The radius of approximation points")
 	flags.Float64Var(&a, "a", .75, "The alpha-value of approximated points")
-	flags.Int64Var(&s, "s", 0, "The random number seed")
+	flags.Var(&s, "s", "The random number seed")
 
 	// Should we apply our operations to an existing image?
 	patch := flags.Bool("p", false, "Modify the output image, rather "+
@@ -227,7 +247,12 @@ func main() {
 	}
 
 	// The random number stream to use
-	rnd := rand.New(rand.NewSource(s))
+	var rnd *rand.Rand
+	if s.IsSet {
+		rnd = rand.New(rand.NewSource(s.I))
+	} else {
+		rnd = rand.New(rand.NewSource(time.Now().Unix()))
+	}
 
 	// Create the destination image and approximate the source image
 	var dst *image.RGBA64
