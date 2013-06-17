@@ -29,31 +29,79 @@ func printHelp(flags *flag.FlagSet) func() {
 	}
 }
 
-// Attempt to decode the input as an Image. Returns a pointer to the
+// Attempt to decode the input as an Image, where `fname' refers to a file if nonempty and standard input otherwise. Returns a pointer to the
 // decoded image, a string representing the encoding used, and an
 // error, if any.
-func readInput(in string) (image.Image, string, error) {
-	var src image.Image
-	var src_fmt string
-	if in == "" {
+func readImage(fname string) (image.Image, string, error) {
+	if fname == "" {
 		// Read from standard input
-		var err error
-		if src, src_fmt, err = image.Decode(os.Stdin); err != nil {
-			return src, "", err
+		if img, img_fmt, err := image.Decode(os.Stdin); err != nil {
+			return nil, "", err
+		} else {
+			return img, img_fmt, nil
 		}
 	} else {
 		// Try to open the file
-		if f, err := os.Open(in); err != nil {
-			return src, "", err
+		f, err := os.Open(fname)
+		if err != nil {
+			return nil, "", err
+		}
+		defer f.Close()
+
+		// Try to decode the file
+		if img, img_fmt, dec_err := image.Decode(f); dec_err != nil {
+			return nil, "", dec_err
 		} else {
-			var dec_err error
-			if src, src_fmt, dec_err = image.Decode(f); dec_err != nil {
-				return src, "", dec_err
-			}
+			return img, img_fmt, nil
 		}
 	}
+}
 
-	return src, src_fmt, nil
+// Returns the Image to be used for output operations. If patch is
+// true and `out' describes an existing image, we will load and use
+// that image; note that if the image is a different size than the
+// `src' image we return an error. If patch is true and `out' does
+// not describe a valid image, we return an error. Otherwise, we
+// return a blank image.
+func outputImage(src image.Image, out string, patch bool) (*image.RGBA64, error) {
+	if patch {
+		if out == "" {
+			return nil, errors.New("Cannot patch without an explicit output file")
+		}
+
+		if img, _, err := readImage(out); err != nil {
+			return nil, err
+		} else {
+			src_bounds := src.Bounds()
+			img_bounds := img.Bounds()
+			// Check the size of the image
+			if img_bounds.Size() != src_bounds.Size() {
+				img_w := img_bounds.Size().X
+				img_h := img_bounds.Size().Y
+				src_w := src_bounds.Size().X
+				src_h := src_bounds.Size().Y
+				unf_msg := "Output image's size (%d x %d) does not match " +
+					"the input image's size (%d x %d)"
+				msg := fmt.Sprintf(unf_msg, img_w, img_h, src_w, src_h)
+				return nil, errors.New(msg)
+			}
+
+			// We now need to coerce the image into the image.RGBA64
+			// format. We use src.Bounds() so the coordinate systems are
+			// consistent.
+			ret := image.NewRGBA64(src.Bounds())
+			for x := src_bounds.Min.X; x < src_bounds.Max.X; x++ {
+				for y := src_bounds.Min.Y; y < src_bounds.Max.Y; y++ {
+					ret.Set(x, y, img.At(x, y))
+				}
+			}
+
+			return ret, nil
+		}
+	} else {
+		// We use src.Bounds() so the coordinate systems are consistent.
+		return image.NewRGBA64(src.Bounds()), nil
+	}
 }
 
 // Attempt to write the Image `dst' to the file described by `out'. If
@@ -65,9 +113,11 @@ func writeOutput(dst image.Image, out, src_fmt string) error {
 	if out == "" {
 		writer = os.Stdout
 	} else {
-		var err error
-		if writer, err = os.Create(out); err != nil {
+		if f, err := os.Create(out); err != nil {
 			return err
+		} else {
+			defer f.Close()
+			writer = f
 		}
 	}
 
@@ -152,6 +202,12 @@ func main() {
 	flags.Float64Var(&a, "a", .75, "The alpha-value of approximated points")
 	flags.Int64Var(&s, "s", 0, "The random number seed")
 
+	// Should we apply our operations to an existing image?
+	patch := flags.Bool("p", false, "Modify the output image, rather "+
+		"than overwriting it")
+	flags.BoolVar(patch, "patch", false, "Modify the output image, rather "+
+		"than overwriting it")
+
 	// Parse the command line flags
 	if err := flags.Parse(os.Args[1:]); err != nil && err != flag.ErrHelp {
 		os.Exit(1)
@@ -165,7 +221,7 @@ func main() {
 	}
 
 	// Read in the source image
-	src, src_fmt, src_err := readInput(*in)
+	src, src_fmt, src_err := readImage(*in)
 	if src_err != nil {
 		panic(src_err)
 	}
@@ -174,7 +230,14 @@ func main() {
 	rnd := rand.New(rand.NewSource(s))
 
 	// Create the destination image and approximate the source image
-	dst := image.NewRGBA64(src.Bounds())
+	var dst *image.RGBA64
+	if tmp_dst, err := outputImage(src, *out, *patch); err != nil {
+		panic(err)
+	} else {
+		dst = tmp_dst
+	}
+
+	// Perform the approximation
 	circles := circapprox.UniformCircles(src, n, r, rnd)
 	circapprox.Approximate(src, dst, a, circles)
 
